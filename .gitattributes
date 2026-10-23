@@ -1,0 +1,9 @@
+# Windows 批处理必须是 CRLF，否则双击会报「命令行语法不正确」
+*.bat text eol=crlf
+
+# 文本文件统一使用 LF
+*.py text eol=lf
+*.md text eol=lf
+*.toml text eol=lf
+*.txt text eol=lf
+*.lock text eol=lf
