@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>四六级英语阅读智能命题系统 · 架构总览 16:9</title>
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --ink:#141413; --ink2:#4a4841; --ink3:#6d6b62; --muted:#8a887e;
+    --line:#e6e3d8; --line2:#f0eee6; --bg:#faf9f5; --card:#fff;
+    --accent:#d97757; --accent-d:#b4603f;
+    --mono: ui-monospace, Consolas, "Liberation Mono", Menlo, monospace;
+    --sans: "PingFang SC", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
+  }
+  html, body { margin:0; padding:0; width:1600px; height:900px; overflow:hidden; background:#ece9df; }
+  body { font-family:var(--sans); color:var(--ink); -webkit-font-smoothing:antialiased; }
+  .page {
+    width:1600px; height:900px; padding:26px 40px 20px;
+    background:var(--bg); display:flex; flex-direction:column; gap:14px;
+  }
+
+  /* Header */
+  .hero { flex:0 0 76px; height:76px; display:flex; align-items:center; justify-content:space-between; gap:24px; }
+  .kicker { font-family:var(--mono); font-size:10px; letter-spacing:.18em; color:var(--accent-d); margin-bottom:5px; }
+  .hero h1 { margin:0 0 4px; font-size:29px; line-height:1.15; font-weight:650; letter-spacing:-0.02em; }
+  .hero h1 span { font-weight:400; color:var(--ink3); font-size:22px; }
+  .hero p { margin:0; font-size:12.5px; color:var(--ink3); }
+  .chips { display:flex; flex-direction:column; gap:6px; align-items:flex-end; }
+  .chiprow { display:flex; gap:6px; justify-content:flex-end; }
+  .chip { font-family:var(--mono); font-size:10.5px; color:var(--ink2); background:#fff; border:1px solid var(--line); padding:3px 9px; border-radius:999px; white-space:nowrap; }
+  .chip.hot { border-color:#ecc9b9; background:#fdf4f0; color:var(--accent-d); }
+
+  /* Section skeleton */
+  .sec { display:flex; flex-direction:column; }
+  .sec1 { flex:0 0 292px; height:292px; }
+  .sec2 { flex:0 0 292px; height:292px; }
+  .sec3 { flex:0 0 152px; height:152px; }
+  .sec-head { flex:0 0 24px; height:24px; display:flex; align-items:baseline; gap:10px; }
+  .sec-head .num { font-family:var(--mono); font-size:11px; color:var(--accent); letter-spacing:.06em; }
+  .sec-head h2 { margin:0; font-size:14px; font-weight:620; }
+  .sec-head .hint { margin-left:auto; font-size:11px; color:var(--muted); }
+  .sec-body { flex:1; min-height:0; }
+
+  /* --- 01 工作流 --- */
+  .flow { height:100%; display:flex; align-items:stretch; }
+  .stage {
+    flex:1; min-width:0; position:relative;
+    background:#fff; border:1px solid var(--line); border-radius:12px;
+    padding:10px 26px 10px 12px; display:flex; flex-direction:column;
+  }
+  .stage .sh { flex:0 0 22px; display:flex; align-items:center; gap:7px; font-size:13px; font-weight:620; }
+  .stage .sh i { width:7px; height:7px; border-radius:50%; display:inline-block; }
+  .stage .sh em { font-style:normal; font-family:var(--mono); font-size:9.5px; color:var(--muted); font-weight:400; margin-left:auto; letter-spacing:.04em; }
+  .slots { flex:1; min-height:0; display:flex; flex-direction:column; gap:8px; }
+  .slot {
+    flex:1; min-height:0; display:flex; align-items:center; justify-content:space-between; gap:8px;
+    border:1px solid var(--line2); border-radius:8px; padding:5px 10px; background:#fff;
+  }
+  .slot .t { display:flex; flex-direction:column; gap:1px; min-width:0; }
+  .slot b { font-size:13.5px; font-weight:600; white-space:nowrap; }
+  .slot code { font-family:var(--mono); font-size:10px; color:var(--muted); white-space:nowrap; }
+  .slot .pct { font-family:var(--mono); font-size:12px; color:#b0aea5; flex:0 0 auto; }
+  .slot.check { border:1px dashed #d97757; background:#fdf7f4; }
+  .slot.check b { color:#8f3f24; }
+  .slot.check .pct { color:#c9a795; }
+  .slot.note { border:1px dashed #ddd8c9; background:#f8f6ef; justify-content:center; }
+  .slot.note span { font-size:11.5px; color:var(--ink3); line-height:1.4; text-align:center; }
+  .slot.note span b { font-size:11.5px; color:var(--accent-d); font-weight:600; }
+  .loop { position:absolute; right:2px; top:32px; width:24px; height:120px; overflow:visible; pointer-events:none; }
+  .sep { flex:0 0 34px; display:flex; align-items:center; justify-content:center; }
+
+  /* --- 02 分层 --- */
+  .layers { height:100%; display:flex; flex-direction:column; gap:8px; }
+  .band {
+    flex:1; min-height:0; display:flex; align-items:center; gap:10px;
+    background:#fff; border:1px solid var(--line); border-radius:10px; padding:5px 11px;
+  }
+  .band .bl { flex:0 0 112px; display:flex; flex-direction:column; gap:1px; }
+  .band .bl .code { font-family:var(--mono); font-size:9.5px; color:var(--muted); letter-spacing:.08em; }
+  .band .bl .name { font-size:13.5px; font-weight:620; }
+  .band .mods { flex:1; min-width:0; display:flex; gap:8px; }
+  .m {
+    flex:1; min-width:0; height:44px; border:1px solid var(--line2); border-radius:8px;
+    padding:4px 9px; display:flex; flex-direction:column; justify-content:center; gap:1px; background:#fff;
+  }
+  .m b { font-size:12.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .m code { font-family:var(--mono); font-size:9.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .band.ext { border-style:dashed; background:#fdfcf8; }
+  .band.ext .m { border-style:dashed; }
+  .tag { display:inline-block; font-family:var(--mono); font-size:9px; padding:0 4px; border-radius:3px; background:#f5f3eb; color:var(--ink3); margin-left:4px; vertical-align:1px; }
+
+  /* --- 03 底部 --- */
+  .bottom { height:100%; display:flex; flex-direction:column; gap:10px; }
+  .brow { display:flex; align-items:center; gap:10px; }
+  .brow.r1 { flex:0 0 56px; }
+  .brow.r2 { flex:1; min-height:0; }
+  .blabel { flex:0 0 112px; font-size:12.5px; font-weight:620; color:var(--ink2); }
+  .blabel small { display:block; font-family:var(--mono); font-size:9.5px; color:var(--muted); font-weight:400; letter-spacing:.04em; }
+  .outs { flex:1; display:flex; gap:7px; min-width:0; }
+  .out {
+    flex:1; min-width:0; height:46px; border:1px solid var(--line); border-radius:8px; background:#fff;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px;
+  }
+  .out b { font-size:12px; font-weight:600; }
+  .out span { font-size:9.5px; color:var(--muted); }
+  .outs .arrowout { flex:0 0 22px; display:flex; align-items:center; justify-content:center; color:#bfbbaa; font-size:16px; }
+  .exports { flex:0 0 205px; display:flex; flex-direction:column; justify-content:center; gap:3px; border-left:1px solid var(--line); padding-left:12px; }
+  .exports .e { font-size:11px; color:var(--ink3); }
+  .exports .e b { color:var(--ink2); font-weight:600; }
+  .stats { flex:1; display:flex; gap:8px; min-width:0; }
+  .stat { flex:1; min-width:0; background:#fff; border:1px solid var(--line); border-radius:9px; padding:6px 12px; display:flex; flex-direction:column; justify-content:center; gap:1px; }
+  .stat .k { font-family:var(--mono); font-size:9.5px; color:var(--muted); letter-spacing:.08em; }
+  .stat .v { font-size:17px; font-weight:650; letter-spacing:-0.01em; line-height:1.15; }
+  .stat .d { font-size:10.5px; color:var(--ink3); }
+  .foot { flex:0 0 16px; display:flex; justify-content:space-between; font-family:var(--mono); font-size:9.5px; color:#a3a096; }
+
+  @media print { body { background:#fff; } }
+</style>
+</head>
+<body>
+
+<!-- 全局箭头定义 -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#bfbbaa"></path>
+    </marker>
+    <marker id="lp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#d97757"></path>
+    </marker>
+  </defs>
+</svg>
+
+<div class="page">
+
+  <!-- ===== Header ===== -->
+  <header class="hero">
+    <div>
+      <div class="kicker">SYSTEM ARCHITECTURE · CET INTELIREADER AGENT v0.1.0</div>
+      <h1>四六级英语阅读智能命题系统 <span>· 架构总览</span></h1>
+      <p>输入中 / 英文素材 → LangGraph 九节点工作流（双质检回环）→ 成套四级 / 六级阅读理解模拟题</p>
+    </div>
+    <div class="chips">
+      <div class="chiprow">
+        <span class="chip hot">LangGraph 1.2</span>
+        <span class="chip">Python 3.10+</span>
+        <span class="chip">DeepSeek Chat</span>
+        <span class="chip">Streamlit</span>
+      </div>
+      <div class="chiprow">
+        <span class="chip">Tkinter</span>
+        <span class="chip">Node.js 20</span>
+        <span class="chip">python-docx</span>
+        <span class="chip">PyInstaller</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===== 01 工作流 ===== -->
+  <section class="sec sec1">
+    <div class="sec-head">
+      <span class="num">01</span><h2>核心工作流 · LangGraph 九节点</h2>
+      <span class="hint">4 个阶段 · 2 处质检回环 · 进度 8% → 96%</span>
+    </div>
+    <div class="sec-body">
+      <div class="flow">
+
+        <!-- 阶段 1 -->
+        <div class="stage">
+          <div class="sh"><i style="background:#d97757"></i>素材准备<em>PREPARE</em></div>
+          <div class="slots">
+            <div class="slot"><div class="t"><b>联网搜索</b><code>search_node</code></div><span class="pct">8%</span></div>
+            <div class="slot"><div class="t"><b>素材分析</b><code>analyze_text</code></div><span class="pct">18%</span></div>
+            <div class="slot note"><span>输入：中 / 英文素材 · 级别 · 体裁<br>可选 Tavily 检索补充素材</span></div>
+          </div>
+        </div>
+        <div class="sep"><svg width="34" height="12" viewBox="0 0 34 12"><line x1="2" y1="6" x2="26" y2="6" stroke="#bfbbaa" stroke-width="1.6" marker-end="url(#ar)"/></svg></div>
+
+        <!-- 阶段 2 -->
+        <div class="stage">
+          <div class="sh"><i style="background:#8a7ba8"></i>文章生成<em>ARTICLE</em></div>
+          <div class="slots">
+            <div class="slot"><div class="t"><b>生成文章</b><code>generate_article</code></div><span class="pct">32%</span></div>
+            <div class="slot check"><div class="t"><b>文章质检</b><code>check_article_quality</code></div><span class="pct">42%</span></div>
+            <div class="slot note"><span><b>↺ FAIL</b> 携修改意见回到生成文章<br>PASS 或达重试上限则放行</span></div>
+          </div>
+          <svg class="loop" viewBox="0 0 24 120"><path d="M2,113 H18 V35 H4" fill="none" stroke="#d97757" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#lp)"/></svg>
+        </div>
+        <div class="sep"><svg width="34" height="12" viewBox="0 0 34 12"><line x1="2" y1="6" x2="26" y2="6" stroke="#bfbbaa" stroke-width="1.6" marker-end="url(#ar)"/></svg></div>
+
+        <!-- 阶段 3 -->
+        <div class="stage">
+          <div class="sh"><i style="background:#6f8f7a"></i>命题<em>QUESTIONS</em></div>
+          <div class="slots">
+            <div class="slot"><div class="t"><b>生成题目</b><code>generate_questions</code></div><span class="pct">56%</span></div>
+            <div class="slot check"><div class="t"><b>题目质检</b><code>check_questions_quality</code></div><span class="pct">66%</span></div>
+            <div class="slot note"><span><b>↺ FAIL</b> 回到生成题目重试<br>PASS 或达重试上限则放行</span></div>
+          </div>
+          <svg class="loop" viewBox="0 0 24 120"><path d="M2,113 H18 V35 H4" fill="none" stroke="#d97757" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#lp)"/></svg>
+        </div>
+        <div class="sep"><svg width="34" height="12" viewBox="0 0 34 12"><line x1="2" y1="6" x2="26" y2="6" stroke="#bfbbaa" stroke-width="1.6" marker-end="url(#ar)"/></svg></div>
+
+        <!-- 阶段 4 -->
+        <div class="stage">
+          <div class="sh"><i style="background:#a08a6a"></i>解析与交付<em>DELIVER</em></div>
+          <div class="slots">
+            <div class="slot"><div class="t"><b>答案解析</b><code>generate_answers</code></div><span class="pct">76%</span></div>
+            <div class="slot"><div class="t"><b>词汇表</b><code>generate_vocabulary</code></div><span class="pct">86%</span></div>
+            <div class="slot"><div class="t"><b>整合输出 → END</b><code>finalize</code></div><span class="pct">96%</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 02 分层 ===== -->
+  <section class="sec sec2">
+    <div class="sec-head">
+      <span class="num">02</span><h2>分层架构 · 同一内核，四种运行形态</h2>
+      <span class="hint">上层调用下层 · 虚线为外部依赖</span>
+    </div>
+    <div class="sec-body">
+      <div class="layers">
+
+        <div class="band">
+          <div class="bl"><span class="code">LAYER 1</span><span class="name">接入层</span></div>
+          <div class="mods">
+            <div class="m"><b>Streamlit Web</b><code>main.py · :8501</code></div>
+            <div class="m"><b>桌面 GUI</b><code>main_tk.py · Tkinter</code></div>
+            <div class="m"><b>单文件 EXE</b><code>dist/ExamAgent.exe</code></div>
+            <div class="m"><b>网页版 Node</b><code>server.js · :8000</code></div>
+          </div>
+        </div>
+
+        <div class="band">
+          <div class="bl"><span class="code">LAYER 2</span><span class="name">编排层</span></div>
+          <div class="mods">
+            <div class="m"><b>状态图</b><code>core/graph.py · StateGraph</code></div>
+            <div class="m"><b>节点实现</b><code>core/nodes.py · 9 nodes</code></div>
+            <div class="m"><b>状态契约</b><code>core/state.py · AgentState</code></div>
+            <div class="m"><b>等价实现</b><code>webapp/server.js · while 循环</code></div>
+          </div>
+        </div>
+
+        <div class="band">
+          <div class="bl"><span class="code">LAYER 3</span><span class="name">基础支撑</span></div>
+          <div class="mods">
+            <div class="m"><b>LLM 客户端</b><code>config/settings.py</code></div>
+            <div class="m"><b>联网检索</b><code>utils/search.py</code></div>
+            <div class="m"><b>语言检测</b><code>utils/helpers.py</code></div>
+            <div class="m"><b>Word 导出</b><code>utils/export.py</code></div>
+            <div class="m"><b>主题样式</b><code>ui/theme.py</code></div>
+          </div>
+        </div>
+
+        <div class="band ext">
+          <div class="bl"><span class="code">EXTERNAL</span><span class="name">外部服务</span></div>
+          <div class="mods">
+            <div class="m"><b>DeepSeek API<span class="tag">必需</span></b><code>deepseek-chat · temperature 0.7</code></div>
+            <div class="m"><b>Tavily Search<span class="tag">可选</span></b><code>max_results 3 · 缺 Key 时跳过</code></div>
+            <div class="m"><b>本地 .env</b><code>DEEPSEEK_API_KEY / TAVILY_API_KEY</code></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 03 输出与约束 ===== -->
+  <section class="sec sec3">
+    <div class="sec-head">
+      <span class="num">03</span><h2>输出结构与关键约束</h2>
+      <span class="hint">一次生成，三种落地</span>
+    </div>
+    <div class="sec-body">
+      <div class="bottom">
+
+        <div class="brow r1">
+          <div class="blabel">输出文档<small>6 SECTIONS</small></div>
+          <div class="outs">
+            <div class="out"><b>文章正文</b><span>英文 · 按大纲</span></div>
+            <div class="out"><b>题目部分</b><span>46–50 · 四选一</span></div>
+            <div class="out"><b>答案解析</b><span>中文逐题精解</span></div>
+            <div class="out"><b>词汇表</b><span>10–15 词 · 三列</span></div>
+            <div class="out"><b>理解摘要</b><span>50–80 字中文</span></div>
+            <div class="out"><b>英文大纲</b><span>Title / Body…</span></div>
+            <div class="arrowout">→</div>
+          </div>
+          <div class="exports">
+            <div class="e"><b>.docx</b> python-docx 排版</div>
+            <div class="e"><b>Markdown</b> 页面富文本预览</div>
+            <div class="e"><b>.txt</b> 网页版复制 / 下载</div>
+          </div>
+        </div>
+
+        <div class="brow r2">
+          <div class="blabel">关键约束<small>CONSTRAINTS</small></div>
+          <div class="stats">
+            <div class="stat"><span class="k">WORD COUNT</span><span class="v">400–450 / 450–550</span><span class="d">四级 / 六级文章词数硬约束</span></div>
+            <div class="stat"><span class="k">QUESTIONS</span><span class="v">5 题 · 46–50</span><span class="d">主旨 1 + 细节 2 + 推理 1 + 词汇 1</span></div>
+            <div class="stat"><span class="k">MAX RETRIES</span><span class="v">0–5 · 默认 3</span><span class="d">文章与题目各自独立计数，达上限强制放行</span></div>
+            <div class="stat"><span class="k">SEARCH</span><span class="v">Tavily Top 3</span><span class="d">结果交 LLM 改写为 400–600 字中文素材</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+</div>
+</body>
+</html>

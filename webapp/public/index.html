@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>四六级出题 Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;700;900&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f6f1e6;
+    --paper-2: #fbf8f0;
+    --ink: #211d16;
+    --ink-soft: #5c5449;
+    --seal: #b4231a;
+    --seal-deep: #8e1b14;
+    --pass: #2e6e3e;
+    --line: #d8cdb8;
+    --serif: "Noto Serif SC", "Songti SC", SimSun, serif;
+    --sans: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    font-family: var(--sans);
+    color: var(--ink);
+    background:
+      repeating-linear-gradient(0deg, transparent 0 27px, rgba(120, 100, 70, 0.045) 27px 28px),
+      radial-gradient(1200px 600px at 50% -10%, rgba(180, 35, 26, 0.06), transparent 60%),
+      var(--paper);
+    line-height: 1.7;
+  }
+  .page { max-width: 880px; margin: 0 auto; padding: 40px 20px 72px; }
+
+  /* ===== 报头 ===== */
+  .masthead {
+    display: flex; align-items: center; gap: 20px;
+    padding-bottom: 18px; border-bottom: 3px double var(--ink);
+    animation: rise .5s ease both;
+  }
+  .seal {
+    flex: none; width: 74px; height: 74px;
+    display: block; object-fit: cover;
+    border-radius: 10px; transform: rotate(-4deg);
+    border: 2px solid var(--ink);
+    box-shadow: 3px 4px 0 rgba(33, 29, 22, .8);
+  }
+  h1 { font-family: var(--serif); font-weight: 900; font-size: 34px; margin: 0; letter-spacing: 1px; }
+  .tagline { margin: 6px 0 0; color: var(--ink-soft); font-size: 14px; }
+
+  /* ===== 面板（试卷卡片） ===== */
+  .panel {
+    background: var(--paper-2);
+    border: 1.5px solid var(--ink);
+    box-shadow: 5px 6px 0 rgba(33, 29, 22, .14);
+    padding: 22px 24px; margin-top: 26px;
+    animation: rise .5s ease both;
+  }
+  .panel:nth-of-type(1) { animation-delay: .05s; }
+  .panel:nth-of-type(2) { animation-delay: .12s; }
+  .panel:nth-of-type(3) { animation-delay: .18s; }
+  .panel:nth-of-type(4) { animation-delay: .24s; }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+  .panel-title {
+    font-family: var(--serif); font-weight: 700; font-size: 17px; margin: 0 0 14px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .panel-title::before { content: ""; width: 10px; height: 10px; background: var(--seal); flex: none; }
+
+  /* ===== 表单 ===== */
+  .field-label {
+    display: block; font-family: var(--serif); font-weight: 700; font-size: 14.5px;
+    margin-bottom: 6px;
+  }
+  .field-label .req { color: var(--seal); }
+  textarea, .text-input, select {
+    width: 100%; font-family: var(--sans); font-size: 14px; color: var(--ink);
+    background: #fffdf7; border: 1px solid var(--line); border-radius: 4px;
+    padding: 10px 12px; outline: none; transition: border-color .15s, box-shadow .15s;
+  }
+  textarea { resize: vertical; min-height: 130px; line-height: 1.8; }
+  textarea:focus, .text-input:focus, select:focus {
+    border-color: var(--seal); box-shadow: 0 0 0 3px rgba(180, 35, 26, .12);
+  }
+  .row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 14px; }
+  .row.cols { align-items: flex-end; }
+  .row.cols .field { flex: 1 1 150px; min-width: 140px; }
+  .check {
+    display: inline-flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer;
+    user-select: none; padding-bottom: 9px;
+  }
+  .check input { width: 16px; height: 16px; accent-color: var(--seal); cursor: pointer; }
+  .check.vocab { padding-bottom: 0; }
+
+  .btn-primary {
+    display: block; width: 100%; margin-top: 22px; padding: 13px 20px;
+    font-family: var(--serif); font-weight: 700; font-size: 17px; letter-spacing: 6px;
+    color: var(--paper-2); background: var(--ink); border: none; cursor: pointer;
+    box-shadow: 3px 4px 0 rgba(180, 35, 26, .85);
+    transition: transform .12s, box-shadow .12s, background .15s;
+  }
+  .btn-primary:hover:not(:disabled) { background: var(--seal); transform: translate(-1px, -1px); box-shadow: 5px 6px 0 rgba(33, 29, 22, .8); }
+  .btn-primary:active:not(:disabled) { transform: translate(1px, 2px); box-shadow: 1px 1px 0 rgba(180, 35, 26, .85); }
+  .btn-primary:disabled { opacity: .55; cursor: not-allowed; letter-spacing: 3px; }
+  .hint { margin-top: 12px; font-size: 12.5px; color: var(--ink-soft); }
+
+  /* ===== 进度 ===== */
+  .progress-head { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 10px; }
+  #progressPct { font-family: var(--serif); font-weight: 900; color: var(--seal); }
+  .bar { height: 10px; background: #e9e0cc; border: 1px solid var(--line); border-radius: 99px; overflow: hidden; }
+  #barFill {
+    height: 100%; width: 0%;
+    background: repeating-linear-gradient(45deg, var(--seal) 0 10px, var(--seal-deep) 10px 20px);
+    transition: width .5s ease;
+  }
+  .steps { list-style: none; margin: 18px 0 4px; padding: 0; }
+  .steps li {
+    position: relative; display: flex; align-items: center; gap: 12px;
+    padding: 7px 0 7px 0; font-size: 14px; color: var(--ink-soft);
+  }
+  .steps li::before {
+    content: ""; position: absolute; left: 11px; top: 30px; bottom: -8px; width: 2px; background: var(--line);
+  }
+  .steps li:last-child::before { display: none; }
+  .dot {
+    flex: none; width: 24px; height: 24px; border-radius: 50%;
+    border: 2px solid var(--line); background: #fffdf7; display: grid; place-items: center;
+    font-size: 12px; font-weight: 700; color: transparent; transition: all .2s;
+  }
+  .steps li.active { color: var(--ink); font-weight: 700; }
+  .steps li.active .dot { border-color: var(--seal); animation: pulse 1.2s ease infinite; }
+  .steps li.done { color: var(--ink); }
+  .steps li.done .dot { border-color: var(--pass); background: var(--pass); color: #fff; }
+  .steps li.done .dot::after { content: "✓"; }
+  .steps li.retried .note { color: var(--seal); font-size: 12px; margin-left: 6px; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(180,35,26,.35); } 50% { box-shadow: 0 0 0 7px rgba(180,35,26,0); } }
+
+  details.logs { margin-top: 16px; border-top: 1px dashed var(--line); padding-top: 12px; }
+  details.logs summary { cursor: pointer; font-size: 13.5px; font-weight: 700; }
+  details.logs pre {
+    margin: 10px 0 0; font-size: 12.5px; color: var(--ink-soft);
+    white-space: pre-wrap; word-break: break-all; max-height: 220px; overflow-y: auto;
+  }
+
+  /* ===== 错误 ===== */
+  .error-panel { border-color: var(--seal); background: #fdf3ef; color: var(--seal-deep); font-size: 14px; }
+  .error-panel strong { font-family: var(--serif); }
+
+  /* ===== 结果 ===== */
+  .result-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+  .result-head h2 { font-family: var(--serif); font-weight: 900; font-size: 21px; margin: 0; }
+  .caption { font-size: 12.5px; color: var(--ink-soft); }
+  .result-actions { margin-left: auto; display: flex; gap: 10px; }
+  .result-actions button {
+    font-family: var(--sans); font-size: 13px; font-weight: 500; cursor: pointer;
+    padding: 7px 14px; border-radius: 4px; border: 1.5px solid var(--ink);
+    background: transparent; color: var(--ink); transition: all .15s;
+  }
+  .result-actions button:hover { background: var(--ink); color: var(--paper-2); }
+  .result-actions button.copied { border-color: var(--pass); color: var(--pass); background: transparent; }
+
+  .paper { border-top: 1px dashed var(--line); margin-top: 12px; padding-top: 6px; }
+  .paper .doc-title {
+    font-family: var(--serif); font-weight: 900; font-size: 20px; text-align: center;
+    margin: 10px 0 4px; letter-spacing: 2px;
+  }
+  .paper h4 {
+    font-family: var(--serif); font-weight: 700; font-size: 16.5px; margin: 26px 0 8px;
+    color: var(--seal-deep); border-bottom: 1px solid rgba(180, 35, 26, .3); padding-bottom: 6px;
+  }
+  .paper p { margin: 4px 0; font-size: 14.5px; white-space: pre-wrap; word-break: break-word; }
+  .paper .en-text { font-size: 15.5px; line-height: 1.9; }
+  .vocab-table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 14px; }
+  .vocab-table th, .vocab-table td { border: 1px solid var(--line); padding: 7px 12px; text-align: left; }
+  .vocab-table th { background: #f0e8d6; font-family: var(--serif); font-weight: 700; }
+  .vocab-table tr:nth-child(even) td { background: #fbf7ec; }
+
+  .foot { margin-top: 40px; text-align: center; font-size: 12.5px; color: var(--ink-soft); letter-spacing: 1px; }
+
+  @media (max-width: 560px) {
+    h1 { font-size: 26px; }
+    .seal { width: 58px; height: 58px; }
+    .result-actions { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="masthead">
+    <img class="seal" src="/seal.jpg" alt="四六级出题 Agent 头像">
+    <div>
+      <h1>四六级出题 Agent</h1>
+      <p class="tagline">老实做四六级阅读很枯燥吧，来试试做自己喜欢的题吧。</p>
+    </div>
+  </header>
+
+  <section class="panel">
+    <h3 class="panel-title">命题设置</h3>
+    <form id="form">
+      <label class="field">
+        <span class="field-label">素材文本 <span class="req">*</span></span>
+        <textarea id="text" placeholder="粘贴中/英文文章或段落，支持多行；也可勾选联网搜索后只填主题"></textarea>
+      </label>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="useSearch"> 启用联网搜索</label>
+        <input type="text" id="searchTopic" class="text-input" style="flex:1; min-width:220px;"
+               placeholder="如：人工智能发展" disabled>
+      </div>
+      <div class="row cols">
+        <label class="field" style="flex:1 1 150px;">
+          <span class="field-label">考试级别</span>
+          <select id="level"><option>四级</option><option selected>六级</option></select>
+        </label>
+        <label class="field" style="flex:1 1 150px;">
+          <span class="field-label">文章体裁</span>
+          <select id="genre"><option selected>自动</option><option>议论文</option><option>说明文</option><option>叙事文</option></select>
+        </label>
+        <label class="field" style="flex:1 1 150px;">
+          <span class="field-label">最大重试次数</span>
+          <select id="maxRetries">
+            <option>0</option><option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option>
+          </select>
+        </label>
+        <label class="check vocab"><input type="checkbox" id="includeVocab" checked> 生成词汇表</label>
+      </div>
+      <button class="btn-primary" id="submitBtn" type="submit">开始生成</button>
+      <p class="hint">完整流程：联网搜索 → 素材分析 → 生成文章 → 文章质检 → 生成题目 → 题目质检 → 答案解析 → 词汇表 → 整合输出，质检不通过会自动按重试次数返工。</p>
+    </form>
+  </section>
+
+  <section class="panel" id="progressPanel" hidden>
+    <div class="progress-head"><span id="progressText">准备中…</span><span id="progressPct">0%</span></div>
+    <div class="bar"><div id="barFill"></div></div>
+    <ol class="steps" id="steps"></ol>
+    <details class="logs" open><summary>运行日志</summary><pre id="logPre"></pre></details>
+  </section>
+
+  <section class="panel error-panel" id="errorBox" hidden></section>
+
+  <section class="panel" id="resultPanel" hidden>
+    <div class="result-head">
+      <h2>生成结果</h2>
+      <span class="caption" id="runLabel"></span>
+      <div class="result-actions">
+        <button type="button" id="copyBtn">复制全文</button>
+        <button type="button" id="downloadBtn">下载 TXT</button>
+      </div>
+    </div>
+    <div class="paper" id="resultBody"></div>
+    <p class="caption" id="retryCaption" style="margin-top:14px;"></p>
+  </section>
+
+  <footer class="foot">四六级出题 Agent · 由 DeepSeek 驱动 · 内容仅供备考练习</footer>
+</div>
+
+<script>
+  const NODES = [
+    ["search", "联网搜索"], ["analyze", "素材分析"], ["gen_article", "生成文章"],
+    ["check_article", "文章质检"], ["gen_questions", "生成题目"], ["check_questions", "题目质检"],
+    ["gen_answers", "生成答案解析"], ["gen_vocabulary", "生成词汇表"], ["finalize", "整合输出"],
+  ];
+
+  const $ = (id) => document.getElementById(id);
+  const form = $("form"), stepsEl = $("steps"), logPre = $("logPre");
+  let running = false, lastOutput = "", lastLevel = "六级";
+
+  // 启用联网搜索联动
+  $("useSearch").addEventListener("change", (e) => { $("searchTopic").disabled = !e.target.checked; });
+
+  function buildSteps() {
+    stepsEl.innerHTML = "";
+    for (const [, label] of NODES) {
+      const li = document.createElement("li");
+      li.innerHTML = `<span class="dot"></span><span>${label}</span>`;
+      stepsEl.appendChild(li);
+    }
+  }
+  function setStep(node, state, note) {
+    const idx = NODES.findIndex(([id]) => id === node);
+    if (idx < 0) return;
+    const li = stepsEl.children[idx];
+    li.classList.toggle("active", state === "active");
+    li.classList.toggle("done", state === "done");
+    li.classList.toggle("retried", state === "active" && !!note);
+    const exist = li.querySelector(".note");
+    if (exist) exist.remove();
+    if (state === "active" && note) {
+      const span = document.createElement("span");
+      span.className = "note"; span.textContent = note;
+      li.appendChild(span);
+    }
+  }
+
+  function log(message) {
+    logPre.textContent += (logPre.textContent ? "\n" : "") + message;
+    logPre.scrollTop = logPre.scrollHeight;
+  }
+
+  // ===== 结果渲染：与 ui/streamlit_app.py 的 _content_to_markdown 解析规则一致 =====
+  function esc(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+
+  function renderResult(content) {
+    const root = $("resultBody");
+    root.innerHTML = "";
+    const lines = content.split("\n");
+    let title = "";
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].trim().startsWith("=")) {
+        for (let j = i + 1; j < lines.length; j++) {
+          if (lines[j].trim().startsWith("=")) break;
+          if (lines[j].trim()) { title = lines[j].trim(); break; }
+        }
+        break;
+      }
+    }
+    if (title) {
+      const h = document.createElement("div");
+      h.className = "doc-title"; h.textContent = title;
+      root.appendChild(h);
+    }
+
+    let vocabRows = [], inVocab = false, inTitleBlock = false;
+    let para = null;
+
+    const flushVocab = () => {
+      if (!vocabRows.length) return;
+      const table = document.createElement("table");
+      table.className = "vocab-table";
+      table.innerHTML = "<thead><tr><th>词汇</th><th>词性</th><th>释义</th></tr></thead>";
+      const tbody = document.createElement("tbody");
+      for (const row of vocabRows) {
+        const tr = document.createElement("tr");
+        for (const cell of row) { const td = document.createElement("td"); td.textContent = cell; tr.appendChild(td); }
+        tbody.appendChild(tr);
+      }
+      table.appendChild(tbody);
+      root.appendChild(table);
+      vocabRows = [];
+    };
+    const flushPara = () => { para = null; };
+
+    for (const line of lines) {
+      const stripped = line.trim();
+      if (stripped.startsWith("=")) { inTitleBlock = !inTitleBlock; flushPara(); continue; }
+      if (inTitleBlock) continue;
+      if (!stripped) { flushPara(); continue; }
+      if (stripped.startsWith("【")) {
+        flushVocab(); flushPara();
+        const h = document.createElement("h4");
+        h.textContent = stripped.replace(/^【+|】+$/g, "").trim();
+        root.appendChild(h);
+        inVocab = h.textContent.includes("词汇表");
+        continue;
+      }
+      if (inVocab && (stripped.match(/\t/g) || []).length >= 2) {
+        flushPara();
+        const parts = stripped.split("\t");
+        while (parts.length < 3) parts.push("");
+        vocabRows.push(parts.slice(0, 3));
+        continue;
+      }
+      if (inVocab) { flushVocab(); inVocab = false; }
+      if (!para) { para = document.createElement("p"); root.appendChild(para); }
+      para.textContent += (para.textContent ? "\n" : "") + stripped;
+      // 英文正文与题目区加大行距
+      if (/^【(文章正文|题目部分)】/.test(root.lastElementChild.previousElementSibling?.textContent || "")) {}
+    }
+    flushVocab();
+    // 粗略标记：文章正文与题目部分给英文样式
+    const headers = [...root.querySelectorAll("h4")];
+    const markEn = (name, en) => {
+      const h = headers.find((x) => x.textContent === name);
+      if (!h) return;
+      let el = h.nextElementSibling;
+      while (el && el.tagName !== "H4") {
+        if (en && el.tagName === "P") el.classList.add("en-text");
+        el = el.nextElementSibling;
+      }
+    };
+    markEn("文章正文", true);
+    markEn("题目部分", true);
+    markEn("英文大纲", true);
+  }
+
+  // ===== 提交与 SSE 流式接收 =====
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (running) return;
+    const text = $("text").value.trim();
+    const useSearch = $("useSearch").checked;
+    const searchTopic = $("searchTopic").value.trim();
+    if (!text && !(useSearch && searchTopic)) {
+      showError("请输入素材文本，或勾选「启用联网搜索」并填写搜索主题");
+      return;
+    }
+    running = true;
+    $("submitBtn").disabled = true;
+    $("submitBtn").textContent = "生成中…";
+    $("errorBox").hidden = true;
+    $("resultPanel").hidden = true;
+    $("progressPanel").hidden = false;
+    logPre.textContent = "";
+    buildSteps();
+    $("progressText").textContent = "准备中…";
+    $("progressPct").textContent = "0%";
+    $("barFill").style.width = "0%";
+
+    try {
+      const resp = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text, useSearch, searchTopic,
+          level: $("level").value, genre: $("genre").value,
+          maxRetries: Number($("maxRetries").value),
+          includeVocab: $("includeVocab").checked,
+        }),
+      });
+      if (!resp.ok || !resp.body) throw new Error(`服务返回 ${resp.status}`);
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let failed = null;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let idx;
+        while ((idx = buf.indexOf("\n\n")) >= 0) {
+          const frame = buf.slice(0, idx);
+          buf = buf.slice(idx + 2);
+          for (const line of frame.split("\n")) {
+            if (!line.startsWith("data: ")) continue;
+            let ev;
+            try { ev = JSON.parse(line.slice(6)); } catch (_) { continue; }
+            handleEvent(ev, (m) => { failed = m; });
+          }
+        }
+      }
+      if (failed) throw new Error(failed);
+    } catch (err) {
+      showError(`生成失败：${err.message || err}`);
+      $("progressText").textContent = "已中断";
+    } finally {
+      running = false;
+      $("submitBtn").disabled = false;
+      $("submitBtn").textContent = "开始生成";
+    }
+  });
+
+  function handleEvent(ev, fail) {
+    if (ev.type === "log") { log(ev.message); return; }
+    if (ev.type === "progress") {
+      if (ev.phase === "start") {
+        setStep(ev.node, "active", ev.label.includes("第") ? ev.label.match(/第 \d+ 次尝试/)?.[0] : "");
+        $("progressText").textContent = ev.label;
+      } else if (ev.phase === "done") {
+        setStep(ev.node, "done");
+        if (ev.message) log(ev.message);
+        $("progressPct").textContent = `${ev.pct}%`;
+        $("barFill").style.width = `${ev.pct}%`;
+        $("progressText").textContent = `${ev.label} 完成`;
+      }
+      return;
+    }
+    if (ev.type === "done") {
+      lastOutput = ev.output;
+      lastLevel = ev.level || "六级";
+      $("progressPct").textContent = "100%";
+      $("barFill").style.width = "100%";
+      $("progressText").textContent = "生成完成";
+      log("生成完成");
+      renderResult(ev.output);
+      $("runLabel").textContent = ev.runLabel || "";
+      $("retryCaption").textContent = `文章重试 ${Math.max((ev.articleRetries || 1) - 1, 0)} 次 · 题目重试 ${Math.max((ev.questionsRetries || 1) - 1, 0)} 次`;
+      $("resultPanel").hidden = false;
+      $("resultPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    if (ev.type === "error") {
+      log(`发生错误: ${ev.message}`);
+      fail(ev.message);
+    }
+  }
+
+  function showError(message) {
+    const box = $("errorBox");
+    box.innerHTML = `<strong>出错了</strong><br>${esc(message)}`;
+    box.hidden = false;
+    box.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  // ===== 导出 =====
+  $("copyBtn").addEventListener("click", async () => {
+    if (!lastOutput) return;
+    try {
+      await navigator.clipboard.writeText(lastOutput);
+      const btn = $("copyBtn");
+      btn.textContent = "已复制 ✓"; btn.classList.add("copied");
+      setTimeout(() => { btn.textContent = "复制全文"; btn.classList.remove("copied"); }, 1800);
+    } catch (_) {
+      showError("复制失败，请手动选择文本复制");
+    }
+  });
+  $("downloadBtn").addEventListener("click", () => {
+    if (!lastOutput) return;
+    const blob = new Blob([lastOutput], { type: "text/plain;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${lastLevel}阅读理解模拟题.txt`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+</script>
+</body>
+</html>

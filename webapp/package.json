@@ -1,0 +1,12 @@
+{
+  "name": "cet-exam-agent-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "四六级出题 Agent 网页版（Node.js 实现，零外部依赖）",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js"
+  }
+}
